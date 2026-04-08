@@ -9,6 +9,15 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// hien trang thai trong termaial
+app.use((req, res, next) => {
+  res.on('finish', () => {
+    console.log(`${req.method} ${req.originalUrl} -> ${res.statusCode}`);
+  });
+  next();
+});
+
+
 app.get('/', (req, res) => {
   res.status(200).json({
     status: 'ok',
