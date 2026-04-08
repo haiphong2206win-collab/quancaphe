@@ -75,6 +75,45 @@ app.get('/api/products', async (req, res) => {
 
 
 
+
+// post 
+app.post('/api/products', async (req, res) => {
+  try {
+    const { name, price, category_id } = req.body;
+
+    if (!name || price == null || !category_id) {
+      return res.status(400).json({
+        message: 'name, price, category_id are required'
+      });
+    }
+
+    const sql = `
+      INSERT INTO products (name, price, category_id)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `;
+
+    const values = [name, price, category_id];
+    const result = await pool.query(sql, values);
+
+    res.status(201).json({
+      message: 'Product created successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
+
+
+
+
+
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
