@@ -15,8 +15,8 @@ app.get('/', (req, res) => {
     message: 'Server is running'
   });
 });
-
-app.get('/', async (req, res) => {
+//  test data
+app.get('/db-test', async (req, res) => {
   try {
     const result = await pool.query('SELECT NOW() AS server_time');
     res.json({
@@ -31,6 +31,49 @@ app.get('/', async (req, res) => {
     });
   }
 });
+
+// GET /api/products
+//GET products
+app.get('/api/products', async (req, res) => {
+  try {
+    const { search } = req.query;
+
+    let sql = `
+      SELECT
+        p.id,
+        p.name,
+        p.price,
+        c.name AS category_name
+      FROM products p
+      JOIN categories c ON p.category_id = c.id
+    `;
+
+    const values = [];
+
+    if (search && search.trim() !== '') {
+      sql += ` WHERE p.name ILIKE $1`;
+      values.push(`%${search.trim()}%`);
+    }
+
+    sql += ` ORDER BY p.id ASC`;
+
+    const result = await pool.query(sql, values);
+
+    return res.status(200).json({
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('GET /api/products error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error'
+    });
+  }
+});
+
+
+
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
