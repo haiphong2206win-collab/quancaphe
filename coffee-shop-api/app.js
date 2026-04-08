@@ -109,7 +109,49 @@ app.post('/api/products', async (req, res) => {
   }
 });
 
+ 
 
+// put 
+app.put('/api/products/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { price } = req.body;
+
+    if (price == null) {
+      return res.status(400).json({
+        message: 'price is required'
+      });
+    }
+
+    const sql = `
+      UPDATE products
+      SET price = $1
+      WHERE id = $2
+      RETURNING *
+    `;
+
+    const values = [price, id];
+    const result = await pool.query(sql, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: 'Product not found'
+      });
+    }
+
+    res.status(200).json({
+      message: 'Product updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    
+    console.error(error);
+    res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
 
 
 
