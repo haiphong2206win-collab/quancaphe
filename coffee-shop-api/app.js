@@ -97,6 +97,47 @@ app.get('/api/admin/categories', async (req, res) => {
   }
 });
 
+/* GET /api/admin/categories/:id
+ admin lay chi tiet 1 danh muc
+ admin bấm nút sửa-> frontend admin cần lấy dữ liệu hiện tại để đổ vào form edit
+ 
+*/
+ app.get('/api/admin/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({
+        message: 'Category id must be a number'
+      });
+    }
+
+    const sql = `
+      SELECT id, name, description, slug, display_order, is_active
+      FROM categories
+      WHERE id = $1
+    `;
+
+    const result = await pool.query(sql, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: 'Category not found'
+      });
+    }
+
+    return res.status(200).json({
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('GET /api/admin/categories/:id error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error'
+    });
+  }
+});
+
 
 // GET /api/products
 //GET products
