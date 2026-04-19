@@ -100,7 +100,7 @@ app.get('/api/admin/categories', async (req, res) => {
 /* GET /api/admin/categories/:id
  admin lay chi tiet 1 danh muc
  admin bấm nút sửa-> frontend admin cần lấy dữ liệu hiện tại để đổ vào form edit
- 
+
 */
  app.get('/api/admin/categories/:id', async (req, res) => {
   try {
@@ -138,6 +138,67 @@ app.get('/api/admin/categories', async (req, res) => {
   }
 });
 
+
+
+/*
+POST /api/admin/categories
+admin tao moi danh muc
+
+*/
+app.post('/api/admin/categories', async (req, res) => {
+  try {
+    const { name, description, slug, display_order, is_active } = req.body;
+
+    if (!name || !slug) //Vì đây là 2 trường tối thiểu để category có thể dùng được: 
+     {
+      return res.status(400).json({
+        message: 'name and slug are required'
+      });
+    }
+
+    const checkSlugSql = `
+      SELECT id
+      FROM categories
+      WHERE slug = $1
+    `;
+
+    const checkSlugResult = await pool.query(checkSlugSql, [slug]);
+
+    if (checkSlugResult.rows.length > 0) {
+      return res.status(400).json({
+        message: 'Slug already exists'
+      });
+    }
+
+    const sql = `
+      INSERT INTO categories (name, description, slug, display_order, is_active)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `;
+
+    const values = [
+      name,
+      description || null, //description không bắt buộc.
+      slug,
+      display_order ?? 0, //Nếu frontend không gửi, mình cho mặc định = 0.
+      is_active ?? true //Nếu không gửi, category mới tạo sẽ hoạt động luôn.
+    ];
+
+    const result = await pool.query(sql, values);
+
+    return res.status(201).json({
+      message: 'Category created successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('POST /api/admin/categories error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
 
 // GET /api/products
 //GET products
