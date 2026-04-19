@@ -71,6 +71,31 @@ app.get('/api/categories', async (req, res) => {
 });
 
 
+/* GET /api/admin/categories
+admin lay toan bo danh muc
+*/
+app.get('/api/admin/categories', async (req, res) => {
+  try {
+    const sql = `
+      SELECT id, name, description, slug, display_order, is_active
+      FROM categories
+      ORDER BY display_order ASC, id ASC
+    `;
+
+    const result = await pool.query(sql);
+
+    return res.status(200).json({
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('GET /api/admin/categories error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error'
+    });
+  }
+});
 
 
 // GET /api/products
