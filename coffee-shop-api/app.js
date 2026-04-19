@@ -41,6 +41,38 @@ app.get('/db-test', async (req, res) => {
   }
 });
 
+
+
+// GET /api/categories -phía người dùng ko phải dmin 
+// user lay danh sach danh muc dang hoat dong
+app.get('/api/categories', async (req, res) => {
+  try {
+    const sql = `
+      SELECT id, name, description, slug, display_order
+      FROM categories
+      WHERE is_active = TRUE
+      ORDER BY display_order ASC, id ASC
+    `;
+
+    const result = await pool.query(sql);
+    /*bất đồng bộ await chờ đợi xủ lý  */
+
+    return res.status(200).json({
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('GET /api/categories error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error'
+    });
+  }
+});
+
+
+
+
 // GET /api/products
 //GET products
 app.get('/api/products', async (req, res) => {
@@ -89,7 +121,7 @@ app.get('/api/products', async (req, res) => {
 app.post('/api/products', async (req, res) => {
   try {
     const { name, price, category_id } = req.body;
-
+     console.log({name, price, category_id});
     if (!name || price == null || !category_id) {
       return res.status(400).json({
         message: 'name, price, category_id are required'
