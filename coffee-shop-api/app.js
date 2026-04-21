@@ -200,6 +200,92 @@ app.post('/api/admin/categories', async (req, res) => {
   }
 });
 
+
+
+/*
+PUT : admin cap nhat danh muc 
+- sua : ten - mo ta - slug - thứ tự hiển thị - trạng thái hoạt động 
+*/
+
+app.put('/api/admin/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, slug, display_order, is_active } = req.body;
+
+    if (isNaN(id)) // check id là số vì phải chặn sớm trường hợp gọi sai 
+      { 
+      return res.status(400).json({
+        message: 'Category id must be a number'
+      });
+    }
+
+    if (!name || !slug) {
+      return res.status(400).json({
+        message: 'name and slug are required'
+      });
+    }
+
+    const checkSlugSql = `
+      SELECT id
+      FROM categories
+      WHERE slug = $1 AND id <> $2
+    `;
+// slug này là để check update phải loại bản chính hiện tại ra 
+    const checkSlugResult = await pool.query(checkSlugSql, [slug, id]);
+
+    if (checkSlugResult.rows.length > 0) {
+      return res.status(400).json({
+        message: 'Slug already exists'
+      });
+    }
+
+    const sql = `
+      UPDATE categories
+      SET name = $1,
+          description = $2,
+          slug = $3,
+          display_order = $4,
+          is_active = $5
+      WHERE id = $6
+      RETURNING *
+    `;
+
+    const values = [
+      name,
+      description || null,
+      slug,
+      display_order ?? 0,
+      is_active ?? true,
+      id
+    ];
+
+    const result = await pool.query(sql, values);
+
+    if (result.rows.length === 0) // update ko ra dòng nào thường là id ko tồn tại 
+      {
+      return res.status(404).json({
+        message: 'Category not found'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Category updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('PUT /api/admin/categories/:id error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
+
+
+
+
+
 // GET /api/products
 //GET products
 app.get('/api/products', async (req, res) => {
