@@ -284,6 +284,66 @@ app.put('/api/admin/categories/:id', async (req, res) => {
 
 
 
+/*
+
+DELETE /api/admin/categories/:id
+admin xoa danh muc
+*/
+// ko delete luoon vi dang la categry lien ket product qua category_id -> xoa luon s
+app.delete('/api/admin/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({
+        message: 'Category id must be a number'
+      });
+    }
+
+    const checkProductSql = `
+      SELECT id
+      FROM products
+      WHERE category_id = $1
+      LIMIT 1
+    `;
+
+    const checkProductResult = await pool.query(checkProductSql, [id]);
+
+    if (checkProductResult.rows.length > 0) {
+      return res.status(400).json({
+        message: 'Cannot delete category because it is being used by products'
+      });
+    }
+
+    const sql = `
+      DELETE FROM categories
+      WHERE id = $1
+      RETURNING *
+    `;
+
+    const result = await pool.query(sql, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: 'Category not found'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Category deleted successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('DELETE /api/admin/categories/:id error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
+
+
 
 
 // GET /api/products
