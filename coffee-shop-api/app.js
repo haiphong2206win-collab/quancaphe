@@ -41,11 +41,317 @@ app.get('/db-test', async (req, res) => {
   }
 });
 
+
+
+// GET /api/categories -phía người dùng ko phải dmin 
+// user lay danh sach danh muc dang hoat dong
+app.get('/api/categories', async (req, res) => {
+  try {
+    const sql = `
+      SELECT id, name, description, slug, display_order
+      FROM categories
+      WHERE is_active = TRUE
+      ORDER BY display_order ASC, id ASC
+    `;
+
+    const result = await pool.query(sql);
+    /*bất đồng bộ await chờ đợi xủ lý  */
+
+    return res.status(200).json({
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('GET /api/categories error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error'
+    });
+  }
+});
+
+
+/* GET /api/admin/categories
+admin lay toan bo danh muc
+*/
+app.get('/api/admin/categories', async (req, res) => {
+  try {
+    const sql = `
+      SELECT id, name, description, slug, display_order, is_active
+      FROM categories
+      ORDER BY display_order ASC, id ASC
+    `;
+
+    const result = await pool.query(sql);
+
+    return res.status(200).json({
+      count: result.rows.length,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('GET /api/admin/categories error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error'
+    });
+  }
+});
+
+/* GET /api/admin/categories/:id
+ admin lay chi tiet 1 danh muc
+ admin bấm nút sửa-> frontend admin cần lấy dữ liệu hiện tại để đổ vào form edit
+
+*/
+ app.get('/api/admin/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({
+        message: 'Category id must be a number'
+      });
+    }
+
+    const sql = `
+      SELECT id, name, description, slug, display_order, is_active
+      FROM categories
+      WHERE id = $1
+    `;
+
+    const result = await pool.query(sql, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: 'Category not found'
+      });
+    }
+
+    return res.status(200).json({
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('GET /api/admin/categories/:id error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error'
+    });
+  }
+});
+
+
+
+/*
+POST /api/admin/categories
+admin tao moi danh muc
+
+*/
+app.post('/api/admin/categories', async (req, res) => {
+  try {
+    const { name, description, slug, display_order, is_active } = req.body;
+
+    if (!name || !slug) //Vì đây là 2 trường tối thiểu để category có thể dùng được: 
+     {
+      return res.status(400).json({
+        message: 'name and slug are required'
+      });
+    }
+
+    const checkSlugSql = `
+      SELECT id
+      FROM categories
+      WHERE slug = $1
+    `;
+
+    const checkSlugResult = await pool.query(checkSlugSql, [slug]);
+
+    if (checkSlugResult.rows.length > 0) {
+      return res.status(400).json({
+        message: 'Slug already exists'
+      });
+    }
+
+    const sql = `
+      INSERT INTO categories (name, description, slug, display_order, is_active)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `;
+
+    const values = [
+      name,
+      description || null, //description không bắt buộc.
+      slug,
+      display_order ?? 0, //Nếu frontend không gửi, mình cho mặc định = 0.
+      is_active ?? true //Nếu không gửi, category mới tạo sẽ hoạt động luôn.
+    ];
+
+    const result = await pool.query(sql, values);
+
+    return res.status(201).json({
+      message: 'Category created successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('POST /api/admin/categories error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
+
+
+
+/*
+PUT : admin cap nhat danh muc 
+- sua : ten - mo ta - slug - thứ tự hiển thị - trạng thái hoạt động 
+*/
+
+app.put('/api/admin/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, slug, display_order, is_active } = req.body;
+
+    if (isNaN(id)) // check id là số vì phải chặn sớm trường hợp gọi sai 
+      { 
+      return res.status(400).json({
+        message: 'Category id must be a number'
+      });
+    }
+
+    if (!name || !slug) {
+      return res.status(400).json({
+        message: 'name and slug are required'
+      });
+    }
+
+    const checkSlugSql = `
+      SELECT id
+      FROM categories
+      WHERE slug = $1 AND id <> $2
+    `;
+// slug này là để check update phải loại bản chính hiện tại ra 
+    const checkSlugResult = await pool.query(checkSlugSql, [slug, id]);
+
+    if (checkSlugResult.rows.length > 0) {
+      return res.status(400).json({
+        message: 'Slug already exists'
+      });
+    }
+
+    const sql = `
+      UPDATE categories
+      SET name = $1,
+          description = $2,
+          slug = $3,
+          display_order = $4,
+          is_active = $5
+      WHERE id = $6
+      RETURNING *
+    `;
+
+    const values = [
+      name,
+      description || null,
+      slug,
+      display_order ?? 0,
+      is_active ?? true,
+      id
+    ];
+
+    const result = await pool.query(sql, values);
+
+    if (result.rows.length === 0) // update ko ra dòng nào thường là id ko tồn tại 
+      {
+      return res.status(404).json({
+        message: 'Category not found'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Category updated successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('PUT /api/admin/categories/:id error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
+
+
+
+/*
+
+DELETE /api/admin/categories/:id
+admin xoa danh muc
+*/
+// ko delete luoon vi dang la categry lien ket product qua category_id -> xoa luon s
+app.delete('/api/admin/categories/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (isNaN(id)) {
+      return res.status(400).json({
+        message: 'Category id must be a number'
+      });
+    }
+
+    const checkProductSql = `
+      SELECT id
+      FROM products
+      WHERE category_id = $1
+      LIMIT 1
+    `;
+
+    const checkProductResult = await pool.query(checkProductSql, [id]);
+
+    if (checkProductResult.rows.length > 0) {
+      return res.status(400).json({
+        message: 'Cannot delete category because it is being used by products'
+      });
+    }
+
+    const sql = `
+      DELETE FROM categories
+      WHERE id = $1
+      RETURNING *
+    `;
+
+    const result = await pool.query(sql, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        message: 'Category not found'
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Category deleted successfully',
+      data: result.rows[0]
+    });
+  } catch (error) {
+    console.error('DELETE /api/admin/categories/:id error:', error);
+
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: error.message
+    });
+  }
+});
+
+
+
+
 // GET /api/products
 //GET products
 app.get('/api/products', async (req, res) => {
   try {
-    const { search } = req.query;
+    // thêm api loc sanpham theo categro
+    const { search ,  category_id } = req.query;
 
     let sql = `
       SELECT
@@ -55,17 +361,26 @@ app.get('/api/products', async (req, res) => {
         c.name AS category_name
       FROM products p
       JOIN categories c ON p.category_id = c.id
-    `;
+      WHERE p.is_available = TRUE 
+    `;// thêm where để Chỉ lấy món còn bán cho người dùng [cite: 102]
 
     const values = [];
+    let paramIndex=1;
 
+
+    // 3. Nếu có tìm kiếm theo tên, dùng AND thay vì WHERE [cite: 180]
     if (search && search.trim() !== '') {
       sql += ` WHERE p.name ILIKE $1`;
       values.push(`%${search.trim()}%`);
     }
+   
+    // 4. Nếu có lọc theo danh mục, thêm điều kiện lọc 
+    if (category_id) {
+      sql += ` AND p.category_id = $${paramIndex++}`;
+      values.push(category_id);
+    }
 
     sql += ` ORDER BY p.id ASC`;
-
     const result = await pool.query(sql, values);
 
     return res.status(200).json({
@@ -85,11 +400,12 @@ app.get('/api/products', async (req, res) => {
 
 
 
+
 // post 
 app.post('/api/products', async (req, res) => {
   try {
     const { name, price, category_id } = req.body;
-
+     console.log({name, price, category_id});
     if (!name || price == null || !category_id) {
       return res.status(400).json({
         message: 'name, price, category_id are required'
@@ -194,6 +510,103 @@ app.delete('/api/products/:id', async (req, res) => {
   }
 });
 
+
+// viet api tao don hang 
+   app.post('/api/orders', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { customer_name, phone, items } = req.body;
+
+    // 1. Kiểm tra tính hợp lệ của danh sách món ăn
+    if (!items || items.length === 0) {
+      return res.status(400).json({ success: false, message: "Đơn hàng phải có ít nhất một món." });
+    }
+
+    await client.query('BEGIN'); // Bắt đầu Transaction [cite: 151, 173]
+
+    // 2. Tạo mã đơn hàng tự động phía Backend để tránh trùng lặp [cite: 40, 241]
+    const orderCode = `DH-${Date.now()}`;
+    let totalAmount = 0;
+
+    // 3. Tạo đơn hàng tổng quát
+    const orderResult = await client.query(
+      `INSERT INTO orders (order_code, customer_name, phone, status, total_amount) 
+       VALUES ($1, $2, $3, 'PENDING', 0) RETURNING id`,
+      [orderCode, customer_name, phone]
+    );
+    const orderId = orderResult.rows[0].id;
+
+    // 4. Lặp qua từng món trong items để lưu chi tiết
+    for (const item of items) {
+      if (item.quantity <= 0) throw new Error("Số lượng phải lớn hơn 0."); // [cite: 99, 100]
+      
+      // Tự lấy giá từ DB để tính tiền chính thức, tránh gian lận [cite: 33, 240]
+      const product = await client.query('SELECT price FROM products WHERE id = $1', [item.drinkId]);
+      if (product.rows.length === 0) throw new Error(`Món với ID ${item.drinkId} không tồn tại.`);
+
+      const unitPrice = product.rows[0].price;
+      const subtotal = unitPrice * item.quantity;
+      totalAmount += subtotal;
+
+      await client.query(
+        `INSERT INTO order_items (order_id, drink_id, quantity, unit_price, subtotal) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        [orderId, item.drinkId, item.quantity, unitPrice, subtotal]
+      );
+    }
+
+    // 5. Cập nhật lại tổng tiền thực tế cuối cùng vào bảng orders [cite: 55]
+    await client.query('UPDATE orders SET total_amount = $1 WHERE id = $2', [totalAmount, orderId]);
+
+    await client.query('COMMIT'); // Hoàn tất giao dịch thành công [cite: 151, 173]
+    res.status(201).json({ success: true, message: "Đặt đơn thành công", orderCode });
+  } catch (error) {
+    await client.query('ROLLBACK'); // Hủy bỏ toàn bộ nếu có bất kỳ lỗi nào xảy ra [cite: 116, 151, 174]
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+// API Cập nhật trạng thái đơn hàng (Dành cho Barista)
+app.patch('/api/orders/:id/status', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body; // Các trạng thái: 'PREPARING', 'READY', 'COMPLETED'
+
+    try {
+        const result = await pool.query(
+            'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *',
+            [status, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng." });
+        }
+
+        res.json({ success: true, message: "Cập nhật trạng thái thành công", order: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+// API Lấy danh sách toàn bộ đơn hàng
+app.get('/api/orders', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM orders ORDER BY created_at DESC' // Sắp xếp đơn mới lên đầu
+        );
+        res.json({
+            success: true,
+            total_orders: result.rowCount,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
