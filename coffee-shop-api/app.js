@@ -350,7 +350,8 @@ app.delete('/api/admin/categories/:id', async (req, res) => {
 //GET products
 app.get('/api/products', async (req, res) => {
   try {
-    const { search } = req.query;
+    // thêm api loc sanpham theo categro
+    const { search ,  category_id } = req.query;
 
     let sql = `
       SELECT
@@ -360,17 +361,26 @@ app.get('/api/products', async (req, res) => {
         c.name AS category_name
       FROM products p
       JOIN categories c ON p.category_id = c.id
-    `;
+      WHERE p.is_available = TRUE 
+    `;// thêm where để Chỉ lấy món còn bán cho người dùng [cite: 102]
 
     const values = [];
+    let paramIndex=1;
 
+
+    // 3. Nếu có tìm kiếm theo tên, dùng AND thay vì WHERE [cite: 180]
     if (search && search.trim() !== '') {
       sql += ` WHERE p.name ILIKE $1`;
       values.push(`%${search.trim()}%`);
     }
+   
+    // 4. Nếu có lọc theo danh mục, thêm điều kiện lọc 
+    if (category_id) {
+      sql += ` AND p.category_id = $${paramIndex++}`;
+      values.push(category_id);
+    }
 
     sql += ` ORDER BY p.id ASC`;
-
     const result = await pool.query(sql, values);
 
     return res.status(200).json({
@@ -385,6 +395,7 @@ app.get('/api/products', async (req, res) => {
     });
   }
 });
+
 
 
 
