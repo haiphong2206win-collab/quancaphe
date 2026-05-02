@@ -592,7 +592,21 @@ app.patch('/api/orders/:id/status', async (req, res) => {
 });
 
 
-
+// API Lấy danh sách toàn bộ đơn hàng
+app.get('/api/orders', async (req, res) => {
+    try {
+        const result = await pool.query(
+            'SELECT * FROM orders ORDER BY created_at DESC' // Sắp xếp đơn mới lên đầu
+        );
+        res.json({
+            success: true,
+            total_orders: result.rowCount,
+            data: result.rows
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
