@@ -570,6 +570,28 @@ app.delete('/api/products/:id', async (req, res) => {
 
 
 
+// API Cập nhật trạng thái đơn hàng (Dành cho Barista)
+app.patch('/api/orders/:id/status', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body; // Các trạng thái: 'PREPARING', 'READY', 'COMPLETED'
+
+    try {
+        const result = await pool.query(
+            'UPDATE orders SET status = $1 WHERE id = $2 RETURNING *',
+            [status, id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy đơn hàng." });
+        }
+
+        res.json({ success: true, message: "Cập nhật trạng thái thành công", order: result.rows[0] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
 
 
 app.listen(PORT, () => {
