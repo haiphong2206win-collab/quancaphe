@@ -511,6 +511,67 @@ app.delete('/api/products/:id', async (req, res) => {
 });
 
 
+// viet api tao don hang 
+   app.post('/api/orders', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { customer_name, phone, items } = req.body;
+
+    // 1. Kiểm tra tính hợp lệ của danh sách món ăn
+    if (!items || items.length === 0) {
+      return res.status(400).json({ success: false, message: "Đơn hàng phải có ít nhất một món." });
+    }
+
+    await client.query('BEGIN'); // Bắt đầu Transaction [cite: 151, 173]
+
+    // 2. Tạo mã đơn hàng tự động phía Backend để tránh trùng lặp [cite: 40, 241]
+    const orderCode = `DH-${Date.now()}`;
+    let totalAmount = 0;
+
+    // 3. Tạo đơn hàng tổng quát
+    const orderResult = await client.query(
+      `INSERT INTO orders (order_code, customer_name, phone, status, total_amount) 
+       VALUES ($1, $2, $3, 'PENDING', 0) RETURNING id`,
+      [orderCode, customer_name, phone]
+    );
+    const orderId = orderResult.rows[0].id;
+
+    // 4. Lặp qua từng món trong items để lưu chi tiết
+    for (const item of items) {
+      if (item.quantity <= 0) throw new Error("Số lượng phải lớn hơn 0."); // [cite: 99, 100]
+      
+      // Tự lấy giá từ DB để tính tiền chính thức, tránh gian lận [cite: 33, 240]
+      const product = await client.query('SELECT price FROM products WHERE id = $1', [item.drinkId]);
+      if (product.rows.length === 0) throw new Error(`Món với ID ${item.drinkId} không tồn tại.`);
+
+      const unitPrice = product.rows[0].price;
+      const subtotal = unitPrice * item.quantity;
+      totalAmount += subtotal;
+
+      await client.query(
+        `INSERT INTO order_items (order_id, drink_id, quantity, unit_price, subtotal) 
+         VALUES ($1, $2, $3, $4, $5)`,
+        [orderId, item.drinkId, item.quantity, unitPrice, subtotal]
+      );
+    }
+
+    // 5. Cập nhật lại tổng tiền thực tế cuối cùng vào bảng orders [cite: 55]
+    await client.query('UPDATE orders SET total_amount = $1 WHERE id = $2', [totalAmount, orderId]);
+
+    await client.query('COMMIT'); // Hoàn tất giao dịch thành công [cite: 151, 173]
+    res.status(201).json({ success: true, message: "Đặt đơn thành công", orderCode });
+  } catch (error) {
+    await client.query('ROLLBACK'); // Hủy bỏ toàn bộ nếu có bất kỳ lỗi nào xảy ra [cite: 116, 151, 174]
+    res.status(500).json({ success: false, message: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+
+
+
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
