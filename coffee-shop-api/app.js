@@ -343,6 +343,32 @@ app.delete('/api/admin/categories/:id', async (req, res) => {
   }
 });
 
+//API DANH MỤC (Categories) - Dành cho Frontend lấy danh sách Tab
+app.get('/api/categories', async (req, res) => {
+    try {
+        // Chỉ lấy các danh mục đang hoạt động (is_active = true) 
+        // và sắp xếp theo thứ tự ưu tiên (display_order)
+        const result = await pool.query(
+            'SELECT id, name, slug FROM categories WHERE is_active = TRUE ORDER BY display_order ASC'
+        );
+        
+        res.status(200).json({
+            success: true,
+            message: "Lấy danh sách danh mục thành công",
+            data: result.rows
+        });
+    } catch (error) {
+        console.error('GET /api/categories error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Lỗi hệ thống khi lấy danh mục'
+        });
+    }
+});
+
+
+
+
 
 
 
