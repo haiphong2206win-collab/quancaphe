@@ -608,6 +608,33 @@ app.get('/api/orders', async (req, res) => {
     }
 });
 
+
+// --- PHẦN 5: API LẤY CHI TIẾT MỘT ĐƠN HÀNG ---
+app.get('/api/orders/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+        const result = await pool.query(
+            `SELECT o.order_code, o.customer_name, i.quantity, p.name AS drink_name, i.unit_price, i.subtotal
+             FROM orders o
+             JOIN order_items i ON o.id = i.order_id
+             JOIN products p ON i.drink_id = p.id
+             WHERE o.id = $1`,
+            [id]
+        );
+
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, message: "Không tìm thấy chi tiết đơn hàng." });
+        }
+
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+});
+
+
+
+
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
